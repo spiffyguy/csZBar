@@ -132,8 +132,10 @@ UITextView *myTextView;
         }
         
         if (self.scanMultiple) {
+            /* DOESN'T WORK ON iOS 10
             UIButton *cancelButton = [[[[[[[self.scanReader.view.subviews objectAtIndex:2] subviews] objectAtIndex:0] subviews] objectAtIndex:2] subviews] objectAtIndex:0];
             [cancelButton setTitle:@"Done" forState:UIControlStateNormal];
+            */
             
             myTextView = [[UITextView alloc] init];
             myTextView.editable = NO;
