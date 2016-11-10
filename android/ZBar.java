@@ -39,10 +39,18 @@ public class ZBar extends CordovaPlugin {
                 scanCallbackContext = callbackContext;
                 JSONObject params = args.optJSONObject(0);
 
+                Boolean scan_multiple = params.optBoolean("scan_multiple", false);
+                // TODO: look at params to find multi_scan and then open a normal Activity...
+                
                 Context appCtx = cordova.getActivity().getApplicationContext();
                 Intent scanIntent = new Intent(appCtx, ZBarScannerActivity.class);
                 scanIntent.putExtra(ZBarScannerActivity.EXTRA_PARAMS, params.toString());
-                cordova.startActivityForResult(this, scanIntent, SCAN_CODE);
+                
+                if (!scan_multiple) {
+                    cordova.startActivityForResult(this, scanIntent, SCAN_CODE);
+                } else {
+                    cordova.startActivity(this, scanIntent, SCAN_CODE);
+                }
             }
             return true;
         } else {

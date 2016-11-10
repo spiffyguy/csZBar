@@ -71,7 +71,8 @@ implements SurfaceHolder.Callback {
     // Customisable stuff
     String whichCamera;
     String flashMode;
-
+    Boolean scan_multiple;
+    
     // For retrieving R.* resources, from the actual app package
     // (we can't use actual.application.package.R.* in our code as we
     // don't know the applciation package name when writing this plugin).
@@ -140,7 +141,8 @@ implements SurfaceHolder.Callback {
             Boolean drawSight = params.optBoolean("drawSight", true);
             whichCamera = params.optString("camera");
             flashMode = params.optString("flash");
-
+            scan_multiple = params.optBoolean("scan_multiple", false);
+        
             // Initiate instance variables
             autoFocusHandler = new Handler();
             scanner = new ImageScanner();
@@ -413,7 +415,9 @@ implements SurfaceHolder.Callback {
                     Intent result = new Intent ();
                     result.putExtra(EXTRA_QRVALUE, qrValue);
                     setResult(Activity.RESULT_OK, result);
-                    finish();
+                    if (!scan_multiple) {
+                        finish();
+                    }
                 }
 
             }
