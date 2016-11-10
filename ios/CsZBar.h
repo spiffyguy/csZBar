@@ -7,7 +7,9 @@
 
 - (void)scan: (CDVInvokedUrlCommand*)command;
 - (void)toggleflash;
-
+- (void)stopScanning;
+- (void)lockLensPosition;
+- (void)setDisplayText:(CDVInvokedUrlCommand*)command;
 
 
 

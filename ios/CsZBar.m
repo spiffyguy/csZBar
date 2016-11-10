@@ -8,6 +8,9 @@
 @property bool scanInProgress;
 @property NSString *scanCallbackId;
 @property AlmaZBarReaderViewController *scanReader;
+@property BOOL scanMultiple;
+@property BOOL playBeep;
+@property AVAudioPlayer *soundBeep;
 
 @end
 
@@ -18,11 +21,20 @@
 @synthesize scanInProgress;
 @synthesize scanCallbackId;
 @synthesize scanReader;
+@synthesize scanMultiple;
+@synthesize playBeep;
+@synthesize soundBeep;
 
 #pragma mark - Cordova Plugin
 
 - (void)pluginInitialize {
     self.scanInProgress = NO;
+    self.scanMultiple = NO;
+    self.playBeep = NO;
+    
+    NSString *soundPath = [NSString stringWithFormat:@"%@/SoundBeep.wav", [[NSBundle mainBundle] resourcePath]];
+    NSURL *soundUrl = [NSURL fileURLWithPath:soundPath];
+    self.soundBeep = [[AVAudioPlayer alloc] initWithContentsOfURL:soundUrl error:nil];
 }
 
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration {
@@ -34,6 +46,9 @@
 }
 
 #pragma mark - Plugin API
+
+UIBarButtonItem *buttonLockFocus;
+UITextView *myTextView;
 
 - (void)scan: (CDVInvokedUrlCommand*)command; 
 {
@@ -71,6 +86,10 @@
             self.scanReader.cameraFlashMode = UIImagePickerControllerCameraFlashModeAuto;
         }
 
+        self.scanMultiple = ([[params objectForKey:@"scan_multiple"] boolValue] == YES);
+        
+        self.playBeep = ([[params objectForKey:@"play_beep"] boolValue] == YES);
+        
         // Hack to hide the bottom bar's Info button... originally based on http://stackoverflow.com/a/16353530
 	NSInteger infoButtonIndex;
         if ([[[UIDevice currentDevice] systemVersion] compare:@"10.0" options:NSNumericSearch] != NSOrderedAscending) {
@@ -94,7 +113,10 @@
         toolbarViewFlash.barStyle = UIBarStyleBlackOpaque;
         UIBarButtonItem *buttonFlash = [[UIBarButtonItem alloc] initWithTitle:@"Flash" style:UIBarButtonItemStyleDone target:self action:@selector(toggleflash)];
         
-        NSArray *buttons = [NSArray arrayWithObjects: buttonFlash, nil];
+        buttonLockFocus = [[UIBarButtonItem alloc] initWithTitle:@"LockFocus" style:UIBarButtonItemStyleDone target:self action:@selector(lockLensPosition)];
+        buttonLockFocus.tag= 1;
+        
+        NSArray *buttons = [NSArray arrayWithObjects: buttonFlash,buttonLockFocus, nil];
         [toolbarViewFlash setItems:buttons animated:NO];
         [self.scanReader.view addSubview:toolbarViewFlash];
 
@@ -108,9 +130,55 @@
 
             self.scanReader.cameraOverlayView = polygonView;
         }
+        
+        if (self.scanMultiple) {
+            UIButton *cancelButton = [[[[[[[self.scanReader.view.subviews objectAtIndex:2] subviews] objectAtIndex:0] subviews] objectAtIndex:2] subviews] objectAtIndex:0];
+            [cancelButton setTitle:@"Done" forState:UIControlStateNormal];
+            
+            myTextView = [[UITextView alloc] init];
+            myTextView.editable = NO;
+            myTextView.text = @"Start Scanning...";
+            myTextView.textColor = [UIColor blackColor];
+            myTextView.frame = CGRectMake(0, (screenWidth > screenHeight ?screenWidth:screenHeight) - 115, (screenWidth > screenHeight ?screenWidth:screenHeight), 115);
+            
+            CGRectMake(0.0, 0, (screenWidth > screenHeight ?screenWidth:screenHeight), 44.0);
+            
+            [self.scanReader.view addSubview:myTextView];
+        }
 
         [self.viewController presentViewController:self.scanReader animated:YES completion:nil];
     }
+}
+
+- (void)lockLensPosition {
+    if (buttonLockFocus.tag == 1) {
+        AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+        [device lockForConfiguration:nil];
+        if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 8.0) {
+            [device setFocusMode:AVCaptureFocusModeLocked];
+            [device setFocusModeLockedWithLensPosition:0.3 completionHandler:nil];
+        } else {
+            [device setFocusMode:AVCaptureFocusModeLocked];
+            device.autoFocusRangeRestriction = AVCaptureAutoFocusRangeRestrictionNear;
+        }
+        [device unlockForConfiguration];
+        buttonLockFocus.tag= 0;
+        [buttonLockFocus setTitle:@"UnlockFocus"];
+    } else {
+        AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+        [device lockForConfiguration:nil];
+        [device setFocusMode:AVCaptureFocusModeAutoFocus];
+        [device unlockForConfiguration];
+        buttonLockFocus.tag= 1;
+        [buttonLockFocus setTitle:@"LockFocus"];
+    }
+}
+
+- (void)setDisplayText: (CDVInvokedUrlCommand*)command{
+    NSDictionary *params = (NSDictionary*) [command argumentAtIndex:0];
+    NSString *textValue = [params objectForKey:@"text"];
+    
+    myTextView.text= textValue;
 }
 
 - (void)toggleflash {
@@ -128,6 +196,15 @@
     }
     
     [device unlockForConfiguration];
+}
+
+- (void)stopScanning{ // TODO: add text as a parameter for the messageAsString
+    [self.scanReader dismissViewControllerAnimated: YES completion: ^(void) {
+        self.scanInProgress = NO;
+        [self sendScanResult: [CDVPluginResult
+                               resultWithStatus: CDVCommandStatus_ERROR
+                               messageAsString: @"cancelled"]];
+    }];
 }
 
 #pragma mark - Helpers
@@ -152,21 +229,29 @@
     ZBarSymbol *symbol = nil;
     for (symbol in results) break; // get the first result
 
-    [self.scanReader dismissViewControllerAnimated: YES completion: ^(void) {
-        self.scanInProgress = NO;
-        [self sendScanResult: [CDVPluginResult
-                               resultWithStatus: CDVCommandStatus_OK
-                               messageAsString: symbol.data]];
-    }];
+    if (self.playBeep) {
+        [self.soundBeep play];
+    }
+    
+    if (!self.scanMultiple) {
+        [self.scanReader dismissViewControllerAnimated: YES completion: ^(void) {
+            self.scanInProgress = NO;
+            [self sendScanResult: [CDVPluginResult
+                                   resultWithStatus: CDVCommandStatus_OK
+                                   messageAsString: symbol.data]];
+        }];
+    } else {
+        for (symbol in results) {
+            pluginResult= [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsString: symbol.data];
+            [pluginResult setKeepCallbackAsBool:YES];
+            [self sendScanResult: pluginResult];
+            myTextView.text= symbol.data;
+        }
+    }
 }
 
 - (void) imagePickerControllerDidCancel:(UIImagePickerController*)picker {
-    [self.scanReader dismissViewControllerAnimated: YES completion: ^(void) {
-        self.scanInProgress = NO;
-        [self sendScanResult: [CDVPluginResult
-                                resultWithStatus: CDVCommandStatus_ERROR
-                                messageAsString: @"cancelled"]];
-    }];
+    [self stopScanning];
 }
 
 - (void) readerControllerDidFailToRead:(ZBarReaderController*)reader withRetry:(BOOL)retry {
