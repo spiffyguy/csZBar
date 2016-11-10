@@ -227,6 +227,7 @@ UITextView *myTextView;
     id<NSFastEnumeration> results = [info objectForKey: ZBarReaderControllerResults];
     
     ZBarSymbol *symbol = nil;
+    CDVPluginResult* pluginResult = nil;
     for (symbol in results) break; // get the first result
 
     if (self.playBeep) {
