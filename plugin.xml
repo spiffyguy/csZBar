@@ -108,6 +108,8 @@
         <header-file src="ios/ZBarSDK/zbar/Video.h" />
         <header-file src="ios/ZBarSDK/zbar/Window.h" />
         <resource-file src="ios/Resources/CsZBarScanView.xib" />
+        <resource-file src="ios/Resources/SoundBeep.wav" />
+        <resource-file src="ios/Resources/ErrorBeep.wav" />
     </platform>
 
 </plugin>

@@ -235,7 +235,7 @@ UITextView *myTextView;
     if (self.playBeep) {
         [self.soundBeep play];
     }
-    
+
     if (!self.scanMultiple) {
         [self.scanReader dismissViewControllerAnimated: YES completion: ^(void) {
             self.scanInProgress = NO;
